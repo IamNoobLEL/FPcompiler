@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Документация проекта</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        h2 {
+            color: #e0e0e0;
+        }
+        h3 {
+            color: #e0e0e0;
+        }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            border: 1px solid #333;
+            overflow-x: auto;
+        }
+        code {
+            background: #1e1e1e;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        a {
+            color: #8ab4f8;
+        }
+    </style>
+</head>
+<body>
+    <h2>Сборка проекта</h2>
+    <ol>
+        <li><strong>Сборка проекта:</strong>
+            <pre><code>dotnet build</code></pre>
+        </li>
+        <li><strong>Запуск проекта:</strong>
+            <pre><code>dotnet run &lt;путь к файлу&gt;</code></pre>
+        </li>
+    </ol>
+
+    <h2>AST</h2>
+    <p>Синтаксическое дерево (AST) строится путем комбинирования узлов <code>Expr</code> в соответствии с синтаксисом языка программирования. Например, операторы и их операнды объединяются в узлы <code>OPERATOR</code>, условные выражения представляются узлами <code>COND</code>, а функции и их вызовы создают узлы <code>FUNC_DEF</code> и <code>CALL</code> соответственно.</p>
+    <p>Каждый узел синтаксического дерева <code>Expr</code> может содержать другие узлы <code>Expr</code>, что позволяет представлять сложные структуры и выражения. Эта структура данных обеспечивает удобное представление синтаксического анализа и интерпретации кода на данном языке программирования.</p>
+
+    <h3>Процесс построения синтаксического дерева</h3>
+
+    <h4>Токенизация</h4>
+    <p>Программа принимает исходный код в виде строки и разбивает его на отдельные части, называемые токенами. Этот процесс реализован в функции <code>tokenize</code> модуля <code>Token</code>. Токены представляют собой минимальные единицы синтаксиса, такие как операторы, числа, строки, идентификаторы и специальные символы.</p>
+
+    <h4>Парсинг</h4>
+    <p>(Более подробно в разделе <a href="#Парсер">Парсер</a>)</p>
+    <p>Следующим шагом является анализ последовательности токенов и построение абстрактного синтаксического дерева (AST). Этот процесс реализован в функции <code>parse</code> модуля <code>Parser</code>. Программа последовательно анализирует каждый токен, сопоставляя его с предопределенными шаблонами, и создает структуры данных <code>Expr</code>, представляющие элементы синтаксического дерева.</p>
+
+    <h4>Создание узлов синтаксического дерева</h4>
+    <p>Узлы AST представляются типом <code>Expr</code>, который включает различные виды узлов, такие как:</p>
+    <ul>
+        <li><strong>SIMPLELIST</strong>: Контейнер для хранения подвыражений, которые нужно вычислить, чтобы получить значение всего выражения. Может содержать как одиночные элементы, такие как числа, так и последовательности операций.</li>
+        <li><strong>SIMPLEARGLIST</strong>: Используется для идентификации аргументов функций, заключенных в фигурные скобки <code>{}</code>. Аргументы собираются в одну переменную и помечаются для дальнейшего применения к соответствующим структурным шаблонам.</li>
+        <li><strong>SIMPLE</strong>: Служит для определения ключевых слов и поддерживаемых операторов. Представляет собой метку для распознанного типа, полученного из токена.</li>
+    </ul>
+    <p>На выходе из программы получается дерево синтаксиса, которое представляет структуру введенного выражения.</p>
+
+    <h2 id="Парсер">Парсер</h2>
+    <p>Парсер программы работает следующим образом:</p>
+    <ol>
+        <li><strong>Парсинг ключевых слов:</strong>
+            <p>Если токен является ключевым словом, таким как <code>var</code>, <code>put</code>, <code>def</code>, <code>sout</code>, <code>if</code>, <code>then</code>, или <code>else</code>, он преобразуется в узел типа <code>SIMPLE</code>. Этот узел добавляется в список подвыражений, который будет объединен в выражение <code>SIMPLELIST</code>.</p>
+            <pre><code>| Token.ID(expr)::t when (List.tryFind (fun x -> x = expr) key_words).IsSome -> token_parser (Expr.SIMPLE(expr)::acc) t</code></pre>
+        </li>
+        <li><strong>Парсинг чисел, строк и логических значений:</strong>
+            <p>Токены, представляющие числа, строки и логические значения, преобразуются в соответствующие узлы типов <code>NUMBER</code>, <code>STRING</code> и <code>BOOL</code>, которые затем добавляются в список подвыражений.</p>
+            <pre><code>| Token.NUMBER(n)::t -> token_parser (Expr.SIMPLELIST([Expr.NUMBER(n)])::acc) t
+| Token.ID("true")::t -> token_parser (Expr.SIMPLELIST([Expr.BOOL(true)])::acc) t
+| Token.ID("false")::t -> token_parser (Expr.SIMPLELIST([Expr.BOOL(false)])::acc) t
+| Token.STRING(s)::t -> token_parser (Expr.SIMPLELIST([Expr.STRING(s)])::acc) t</code></pre>
+        </li>
+        <li><strong>Парсинг идентификаторов:</strong>
+            <p>Идентификаторы, представляющие переменные или функции, преобразуются в узлы типа <code>ID</code> и добавляются в список подвыражений.</p>
+            <pre><code>| Token.ID(id)::t -> token_parser (Expr.SIMPLELIST([Expr.ID(id)])::acc) t</code></pre>
+        </li>
+        <li><strong>Парсинг аргументов функций:</strong>
+            <p>Аргументы функций, заключенные в фигурные скобки <code>{}</code>, собираются в список и преобразуются в узел типа <code>SIMPLEARGLIST</code>.</p>
+            <pre><code>| Token.LEFT_CURLY::t ->
+    let read_args, remaining_part = token_parser [] t
+    if List.forall (fun x -> match x with | Expr.SIMPLELIST([Expr.ID(_)]) -> true | _ -> false) read_args 
+    then token_parser (Expr.SIMPLEARGLIST(read_args)::acc) remaining_part
+    else failwith ("token_parser ERROR: non ids inside function args: " + (sprintf "%A" read_args))</code></pre>
+        </li>
+        <li><strong>Парсинг выражений в круглых скобках:</strong>
+            <p>Выражения, заключенные в круглые скобки <code>()</code>, анализируются рекурсивно, чтобы собрать все подвыражения в список. Затем список преобразуется в узел типа <code>SIMPLELIST</code>, содержащий подвыражения или операторы.</p>
+            <pre><code>| Token.LEFT_PARENTHESIS::t ->
+    let read_exprs, remaining_part = token_parser [] t
+    match read_exprs with
+    | Expr.SIMPLEOP(op)::t -> token_parser (Expr.SIMPLELIST([Expr.OPERATOR(op, t)])::acc) remaining_part
+    | Expr.SIMPLE("var")::Expr.SIMPLELIST([Expr.ID(id)])::Expr.SIMPLELIST(list)::[] -> token_parser (Expr.SIMPLELIST([Expr.VARIABLE(id, Expr.SIMPLELIST(list))])::acc) remaining_part
+    | Expr.SIMPLE("put")::Expr.SIMPLELIST([Expr.ID(id)])::Expr.SIMPLELIST(list)::[] -> token_parser (Expr.SIMPLELIST([Expr.SET(id, Expr.SIMPLELIST(list))])::acc) remaining_part
+    | Expr.SIMPLE("def")::Expr.SIMPLELIST([Expr.ID(id)])::(Expr.SIMPLEARGLIST(args) as args_list)::(Expr.SIMPLELIST(_) as body)::[] -> 
+        token_parser (SIMPLELIST([Expr.FUNC_DEF(id, args_list, body, Map<string, Expr>[], List.length args)])::acc) remaining_part
+    | Expr.SIMPLELIST([Expr.ID(id)])::t ->
+        if List.forall (fun x -> match x with | Expr.SIMPLELIST(_) -> true | _ -> false) t
+        then token_parser (SIMPLELIST([Expr.CALL(id, Expr.SIMPLELIST(t), List.length t)])::acc) remaining_part
+        else failwith ("token_parser ERROR: wrong function syntax! Used as parameters for function call: " + (sprintf "%A" t)) 
+    | Expr.SIMPLELIST(list)::t -> 
+        let rec gather_simple_lists acc = function
+        | (Expr.SIMPLELIST(_) as list)::t' -> gather_simple_lists (list::acc) t'
+        | [] -> List.rev acc, []
+        | waste -> 
+            printfn "unmatched expr: %A" waste
+            failwith "gather_simple_lists ERROR: misformat expression"
+        let lists, _ = gather_simple_lists [] (SIMPLELIST(list)::t)
+        token_parser (Expr.SIMPLELIST(lists)::acc) remaining_part
+    | Expr.SIMPLE("if")::(Expr.SIMPLELIST(_) as cond)
+        ::Expr.SIMPLE("then")::(Expr.SIMPLELIST(_) as expr1)
+        ::Expr.SIMPLE("else")::(Expr.SIMPLELIST(_) as expr2)::[] -> 
+            token_parser (Expr.SIMPLELIST([Expr.COND(cond, expr1, expr2)])::acc) remaining_part
+    | Expr.SIMPLE("if")::(Expr.SIMPLELIST(_) as cond)
+        ::Expr.SIMPLE("then")::(Expr.SIMPLELIST(_) as expr1)::[] ->
+            token_parser (Expr.SIMPLELIST([Expr.COND(cond, expr1, SIMPLE(""))])::acc) remaining_part
+    | Expr.SIMPLE("sout")::(Expr.SIMPLELIST(_) as body)::[] -> token_parser (Expr.SIMPLELIST([Expr.PRINT(body)])::acc) remaining_part
+    | (Expr.NUMBER(_) as num_expr)::[] -> token_parser (SIMPLELIST([num_expr])::acc) remaining_part
+    | (Expr.STRING(_) as str_expr)::[] -> token_parser (SIMPLELIST([str_expr])::acc) remaining_part
+    | waste -> failwith ("token_parser ERROR: wrong parenthesis structure: " + (sprintf "%A" waste))</code></pre>
+        </li>
+        <li><strong>Парсинг операторов:</strong>
+            <p>Операторы преобразуются в узлы типа <code>SIMPLEOP</code> и добавляются в список подвыражений.</p>
+            <pre><code>| Token.OPERATOR(op)::t -> token_parser (Expr.SIMPLEOP(op)::acc) t</code></pre>
+        </li>
+    </ol>
+
+    <h3>Пример использования парсера</h3>
+    <p>Рассмотрим следующий пример кода:</p>
+    <pre><code>(var fib1 1)
+(var fib2 1)
+(def fib {n}
+  (if (= n 1) 
+    fib1 
+    (if (= n 2) 
+      fib2 
+      (+ (fib (- n 1)) (fib (- n 2)))
+    )
+  )
+)
+(sout (fib 7))</code></pre>
+    <p>Этот код определяет две переменные <code>fib1</code> и <code>fib2</code>, рекурсивную функцию <code>fib</code>, которая вычисляет числа Фибоначчи, и выводит результат вызова этой функции с аргументом 7.</p>
+
+    <h2>Интерпретатор</h2>
+    <p>Интерпретатор программы работает следующим образом:</p>
+    <ol>
+        <li><strong>Интерпретация SIMPLELIST:</strong>
+            <p>Если необходимо интерпретировать тип <code>SIMPLELIST</code>, то все его подвыражения интерпретируются. Этот процесс продолжается до тех пор, пока не будет получено значение, не являющееся типом <code>SIMPLE</code>.</p>
+            <pre><code>| Expr.SIMPLELIST(list) -> 
+    let rec eval_lists env = function
+        | h::t -> 
+            let evaluated_first, new_env = eval_impl env h
+            match evaluated_first with
+            | Expr.SIMPLE(_) as simple -> eval_lists new_env t
+            | _ ->
+                let evaluated, new_env' = eval_impl new_env evaluated_first 
+                match evaluated with
+                | Expr.NUMBER(_) | Expr.STRING(_) | Expr.BOOL(_) -> 
+                    if List.length t <> 0 then printfn "eval_simple_lists@ warning# useless members at the end of list"
+                    evaluated, new_env'
+                | _ -> eval_lists new_env' t
+        | [] ->
+            Expr.SIMPLE(""), env
+    eval_lists env list</code></pre>
+        </li>
+        <li><strong>Интерпретация условного выражения (COND):</strong>
+            <p>При интерпретации условного выражения сначала вычисляется условие, а затем возвращается соответствующая ветвь выражения без её вычисления.</p>
+            <pre><code>| Expr.COND(cond, expr1, expr2) ->
+    let eval_cond, new_env = eval_impl env cond
+    match eval_cond with 
+    | Expr.NUMBER(n) -> if Convert.ToBoolean n then (expr1, new_env) else (expr2, new_env)
+    | Expr.BOOL(b) -> if b then (expr1, new_env) else (expr2, new_env)
+    | waste -> failwith ("eval_impl ERROR: unevaluatable cond expression: " + (sprintf "%A" waste))</code></pre>
+        </li>
+        <li><strong>Обращение к именованной переменной:</strong>
+            <p>Если встречается именованная переменная, то программа обращается к переменной в текущем окружении, и значение этой переменной возвращается.</p>
+            <pre><code>| Expr.ID(id) -> eval_impl env (lookup id env)</code></pre>
+        </li>
+        <li><strong>Объявление функции (FUNC_DEF):</strong>
+            <p>При объявлении функции информация о функции записывается в переменное окружение. В информацию о функции также добавляется текущий контекст (переменные окружения) для поддержки замыканий.</p>
+            <pre><code>| Expr.FUNC_DEF(id, args, body, _, arity) ->
+    Expr.SIMPLE(""), (Map.add id (Expr.FUNC_DEF(id, args, body, env, arity)) env)</code></pre>
+        </li>
+        <li><strong>Вызов функции (CALL):</strong>
+            <p>При вызове функции проверяется соответствие количества аргументов объявленной и вызываемой функции. Затем аргументы функции связываются с параметрами из вызова, и вместе с сохраненным окружением используются для интерпретации тела функции. В этом процессе также учитывается информация о самой функции, что позволяет осуществлять рекурсивные вызовы функций.</p>
+            <pre><code>| Expr.CALL(id, Expr.SIMPLELIST(args), arity) ->
+    let env_function = Map.tryFind id env
+    if env_function.IsNone then failwith ("eval_impl ERROR: use of undeclared function " + id)
+    else 
+        let (Expr.FUNC_DEF(_, Expr.SIMPLEARGLIST(env_args), body, env_env, env_arity)) = env_function.Value
+        if arity <> env_arity 
+        then failwith ("eval_impl ERROR: function use with different arity: expected " + (sprintf "%A" env_arity) + " got: " + (sprintf "%A" arity))
+        else
+            let rec add_env_args env = function
+            | (Expr.SIMPLELIST([Expr.ID(h1)])::t1), (h2::t2) -> 
+                let eval_h2, new_env =  eval_impl env h2
+                add_env_args (Map.add h1 eval_h2 new_env) (t1, t2)
+            | ([], []) -> env
+            | waste -> failwith ("eval_impl ERROR: Some serious thing happened during concatenations of maps: " + (sprintf "%A" waste))
+
+            let new_env = add_env_args env (env_args, args) 
+            let merged_env = Map.fold (fun acc key value -> Map.add key value acc) env new_env
+            let merged_env2 = Map.fold (fun acc key value -> Map.add key value acc) merged_env env_env
+
+            eval_impl merged_env2 body</code></pre>
+        </li>
+        <li><strong>Обработка операторов:</strong>
+            <p>Для операторов, взаимодействующих со списками аргументов, сначала происходит оценка и проверка типов элементов списка, а затем непосредственное вычисление значения.</p>
+            <pre><code>| Expr.OPERATOR(op, t) when (Map.tryFind op numeric_operators).IsSome ->
+    let (single_lambda, multiple_lambda) = Map.find op numeric_operators
+    let evaluated_list, new_env = eval_args_num eval_impl env [] t
+    match List.length evaluated_list with
+    | 0 -> failwith "eval_impl ERROR: operator + can't have 0 arguments"
+    | 1 -> single_lambda (List.head evaluated_list), new_env
+    | _ -> List.reduce (fun x y -> multiple_lambda (x, y)) evaluated_list, new_env
+| Expr.OPERATOR(op, t) when (Map.tryFind op bool_operators).IsSome ->
+    let (single_lambda, multiple_lambda) = Map.find op bool_operators
+    let evaluated_list, new_env = eval_args_bool eval_impl env [] t
+    match List.length evaluated_list with
+    | 0 -> failwith "eval_impl ERROR: operator + can't have 0 arguments"
+    | 1 -> single_lambda (List.head evaluated_list), new_env
+    | _ -> List.reduce (fun x y -> multiple_lambda (x, y)) evaluated_list, new_env</code></pre>
+        </li>
+        <li><strong>Простейшие типы:</strong>
+            <p>Простейшие типы, такие как числа, строки и логические переменные, возвращают себя же при оценке.</p>
+            <pre><code>| Expr.NUMBER(_) as number -> number, env
+| Expr.STRING(_) as string -> string, env
+| Expr.BOOL(_) as boolean -> boolean, env</code></pre>
+        </li>
+        <li><strong>Печать результатов (PRINT):</strong>
+            <p>Узлы <code>PRINT</code> вычисляют выражение и выводят его значение.</p>
+            <pre><code>| Expr.PRINT(body) ->
+    let evaludated_body, new_env = eval_impl env body
+    match evaludated_body with
+    | Expr.SIMPLE(_) -> failwith ("eval_impl.sout ERROR: unevaluatable simple value to sout\n")
+    | _ ->
+        let evaluated_eval, new_env' = eval_impl new_env evaludated_body
+        match evaluated_eval with
+        | Expr.NUMBER(num) -> 
+            printfn "%f" num
+            SIMPLE(""), new_env
+        | Expr.STRING(str) -> 
+            printfn "\"%s\"" str
+            SIMPLE(""), new_env
+        | Expr.BOOL(boolean) ->
+            if boolean then
+                printfn "true"
+                SIMPLE(""), new_env
+            else
+                printfn "false"
+                SIMPLE(""), new_env
+        | Expr.ID(id_val) as id ->
+            let evaluated_id, new_env'' = eval_impl new_env' id
+            printfn "id: %s = %A" id_val evaluated_id
+            SIMPLE(""), new_env''</code></pre>
+        </li>
+    </ol>
+    <p>В соответствии с требованиями языка программирования, интерпретатор возвращает один из подтипов <code>Expr</code>. Интерпретатор позволяет анализировать и выполнять код, представленный в структуре дерева синтаксиса.</p>
+
+    <h2>Описание функций</h2>
+
+    <h3>Именованные переменные (let)</h3>
+    <p><strong>Описание</strong>: 
+        Функция <code>let</code> используется для создания переменных и привязки значений. Это позволяет именовать значения, чтобы затем использовать их в других частях программы.
+    </p>
+    <p><strong>Синтаксис</strong>:
+        <pre><code>(var имя_переменной значение)</code></pre>
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(var x 10)
+(sout x)</code></pre>
+    </p>
+    <p><strong>Пояснение</strong>:
+        В данном примере создается переменная <code>x</code> со значением <code>10</code>. Затем значение переменной <code>x</code> выводится с помощью функции <code>sout</code>.
+    </p>
+    <p><strong>Соответствующий AST</strong>:
+        <pre><code>Expr.SIMPLELIST [
+    Expr.VARIABLE ("x", Expr.NUMBER 10.0);
+    Expr.PRINT (Expr.ID "x")
+]</code></pre>
+    </p>
+
+    <h3>Рекурсия</h3>
+    <p><strong>Описание</strong>: 
+        Рекурсия позволяет функции вызывать саму себя. Это полезно для решения задач, которые могут быть разбиты на более мелкие подзадачи того же типа.
+    </p>
+    <p><strong>Синтаксис</strong>:
+        <pre><code>(def имя_функции {аргумент}
+  (if (условие)
+    (базовый случай)
+    (рекурсивный случай)
+  )
+)</code></pre>
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(def fact {n}
+  (if (= n 0)
+    1
+    (* n (fact (- n 1)))
+  )
+)
+(sout (fact 5))</code></pre>
+    </p>
+    <p><strong>Пояснение</strong>:
+        В данном примере создается функция <code>fact</code>, которая вычисляет факториал числа <code>n</code>. Если <code>n</code> равно 0, функция возвращает 1 (базовый случай). В противном случае возвращается произведение <code>n</code> и вызов <code>fact</code> с аргументом <code>n - 1</code> (рекурсивный случай).
+    </p>
+    <p><strong>Соответствующий AST</strong>:
+        <pre><code>Expr.SIMPLELIST [
+    Expr.FUNC_DEF (
+        "fact",
+        Expr.SIMPLEARGLIST [Expr.SIMPLELIST [Expr.ID "n"]],
+        Expr.SIMPLELIST [
+            Expr.COND (
+                Expr.OPERATOR ("=", [Expr.ID "n"; Expr.NUMBER 0.0]),
+                Expr.NUMBER 1.0,
+                Expr.OPERATOR ("*", [
+                    Expr.ID "n",
+                    Expr.CALL ("fact", Expr.SIMPLELIST [Expr.OPERATOR ("-", [Expr.ID "n"; Expr.NUMBER 1.0])], 1)
+                ])
+            )
+        ],
+        Map.empty,
+        1
+    );
+    Expr.PRINT (Expr.CALL ("fact", Expr.SIMPLELIST [Expr.NUMBER 5.0], 1))
+]</code></pre>
+    </p>
+
+    <h3>Ленивое вычисление</h3>
+    <p><strong>Описание</strong>: 
+        Ленивое вычисление откладывает выполнение выражения до тех пор, пока оно не потребуется. В данной реализации оно используется неявно при интерпретации некоторых выражений.
+    </p>
+
+    <h3>Функции</h3>
+    <p><strong>Описание</strong>: 
+        Функции позволяют группировать повторяющиеся блоки кода для многократного использования.
+    </p>
+    <p><strong>Синтаксис</strong>:
+        <pre><code>(def имя_функции {аргумент1 аргумент2 ...}
+  тело_функции
+)</code></pre>
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(def add {x y}
+  (+ x y)
+)
+(sout (add 3 5))</code></pre>
+    </p>
+    <p><strong>Пояснение</strong>:
+        В данном примере создается функция <code>add</code>, которая принимает два аргумента <code>x</code> и <code>y</code>, и возвращает их сумму. Затем результат вызова функции <code>add</code> с аргументами <code>3</code> и <code>5</code> выводится с помощью <code>sout</code>.
+    </p>
+    <p><strong>Соответствующий AST</strong>:
+        <pre><code>Expr.SIMPLELIST [
+    Expr.FUNC_DEF (
+        "add",
+        Expr.SIMPLEARGLIST [Expr.SIMPLELIST [Expr.ID "x"]; Expr.SIMPLELIST [Expr.ID "y"]],
+        Expr.SIMPLELIST [Expr.OPERATOR ("+", [Expr.ID "x"; Expr.ID "y"])],
+        Map.empty,
+        2
+    );
+    Expr.PRINT (Expr.CALL ("add", Expr.SIMPLELIST [Expr.NUMBER 3.0; Expr.NUMBER 5.0], 2))
+]</code></pre>
+    </p>
+
+    <h3>Замыкания</h3>
+    <p><strong>Описание</strong>: 
+        Замыкания позволяют функции запоминать окружение, в котором они были созданы. Это полезно для создания функций с состоянием.
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(var x 10)
+(def inc {y}
+  (+ x y)
+)
+(sout (inc 5))</code></pre>
+    </p>
+    <p><strong>Пояснение</strong>:
+        В данном примере переменная <code>x</code> находится в окружении функции <code>inc</code>. Когда <code>inc</code> вызывается с аргументом <code>5</code>, она возвращает сумму <code>x</code> и <code>y</code>.
+    </p>
+    <p><strong>Соответствующий AST</strong>:
+        <pre><code>Expr.SIMPLELIST [
+    Expr.VARIABLE ("x", Expr.NUMBER 10.0);
+    Expr.FUNC_DEF (
+        "inc",
+        Expr.SIMPLEARGLIST [Expr.SIMPLELIST [Expr.ID "y"]],
+        Expr.SIMPLELIST [Expr.OPERATOR ("+", [Expr.ID "x"; Expr.ID "y"])],
+        Map.empty,
+        1
+    );
+    Expr.PRINT (Expr.CALL ("inc", Expr.SIMPLELIST [Expr.NUMBER 5.0], 1))
+]</code></pre>
+    </p>
+
+    <h3>Библиотечные функции: ввод-вывод файлов</h3>
+    <p><strong>Описание</strong>: 
+        Библиотечные функции для ввода-вывода файлов позволяют считывать данные из файлов и записывать данные в файлы.
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(def readFile {filename}
+  ;; читаем файл и возвращаем его содержимое
+)
+
+(def writeFile {filename content}
+  ;; записываем содержимое в файл
+)</code></pre>
+    </p>
+
+    <h3>Списки / Последовательности</h3>
+    <p><strong>Описание</strong>: 
+        Списки и последовательности используются для хранения и работы с коллекциями элементов.
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(var myList [1 2 3 4 5])
+(sout (head myList))
+(sout (tail myList))</code></pre>
+    </p>
+    <p><strong>Пояснение</strong>:
+        В данном примере создается список <code>myList</code>, затем выводятся его первый элемент (<code>head</code>) и хвост (все элементы, кроме первого, <code>tail</code>).
+    </p>
+
+    <h3>Библиотечные функции: списки/последовательности</h3>
+    <p><strong>Описание</strong>: 
+        Библиотечные функции для работы со списками и последовательностями включают операции, такие как <code>map</code>, <code>filter</code>, <code>reduce</code>.
+    </p>
+    <p><strong>Пример</strong>:
+        <pre><code>(def map {f lst}
+  ;; применяем функцию f к каждому элементу списка lst
+)</code></pre>
+    </p>
+</body>
+</html>
